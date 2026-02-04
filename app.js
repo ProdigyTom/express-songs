@@ -114,6 +114,35 @@ app.get('/api/tabs/:songId', requireAuth, (req, res) => {
     });
 });
 
+app.get('/api/videos/:songId', requireAuth, (req, res) => {
+  const userId = req.token.user_id;
+  const songId = req.params.songId;
+
+  sequelize.models.Song.findOne({ where: { id: songId, user_id: userId } })
+    .then(song => {
+      if (!song) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Song not found',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      sequelize.models.Video.findAll({ where: { song_id: songId } })
+        .then(result => {
+          res.json(result);
+        });
+    })
+    .catch(err => {
+      console.error('Error executing query', err.stack);
+      res.status(500).json({
+        status: 'error',
+        message: 'Internal Server Error',
+        timestamp: new Date().toISOString(),
+      });
+    });
+});
+
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

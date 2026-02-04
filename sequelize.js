@@ -75,4 +75,36 @@ sequelize.define('Tab', {
     timestamps: false
 });
 
+sequelize.define('Video', {
+  id: {
+    type: Sequelize.UUID,
+    defaultValue: Sequelize.UUIDV4,
+    primaryKey: true
+  },
+  video_type: {
+    type: Sequelize.STRING,
+    allowNull: false
+  },
+  url: {
+    type: Sequelize.STRING,
+    allowNull: false
+  },
+  song_id: {
+    type: Sequelize.UUID,
+    allowNull: false
+  },
+  created_at: {
+    type: Sequelize.DATE,
+    defaultValue: Sequelize.NOW
+  },
+  updated_at: {
+    type: Sequelize.DATE,
+    defaultValue: Sequelize.NOW
+  }
+},
+{
+    tableName: 'videos',
+    timestamps: false
+});
+
 module.exports = sequelize;

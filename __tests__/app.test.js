@@ -26,6 +26,9 @@ jest.mock('../sequelize', () => ({
     },
     Tab: {
       findOne: jest.fn()
+    },
+    Video: {
+      findAll: jest.fn()
     }
   }
 }));
@@ -238,6 +241,106 @@ describe('Express App', () => {
       const token = createAuthToken();
       const response = await request(app)
         .get('/api/tabs/song-123')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(500);
+      expect(response.body).toMatchObject({
+        status: 'error',
+        message: 'Internal Server Error'
+      });
+    });
+  });
+
+  describe('GET /api/videos/:songId', () => {
+    it('should return 401 without auth token', async () => {
+      const response = await request(app).get('/api/videos/song-123');
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should return videos for valid song', async () => {
+      const mockSong = {
+        id: 'song-123',
+        title: 'Test Song',
+        artist: 'Test Artist',
+        user_id: 'test-user-123'
+      };
+
+      const mockVideos = [
+        {
+          id: 'video-1',
+          video_type: 'youtube',
+          url: 'https://youtube.com/watch?v=abc123',
+          song_id: 'song-123',
+          created_at: '2024-01-01T00:00:00.000Z',
+          updated_at: '2024-01-01T00:00:00.000Z'
+        },
+        {
+          id: 'video-2',
+          video_type: 'vimeo',
+          url: 'https://vimeo.com/123456',
+          song_id: 'song-123',
+          created_at: '2024-01-02T00:00:00.000Z',
+          updated_at: '2024-01-02T00:00:00.000Z'
+        }
+      ];
+
+      sequelize.models.Song.findOne.mockResolvedValue(mockSong);
+      sequelize.models.Video.findAll.mockResolvedValue(mockVideos);
+
+      const token = createAuthToken();
+      const response = await request(app)
+        .get('/api/videos/song-123')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual(mockVideos);
+      expect(sequelize.models.Video.findAll).toHaveBeenCalledWith({
+        where: { song_id: 'song-123' }
+      });
+    });
+
+    it('should return empty array when song has no videos', async () => {
+      const mockSong = {
+        id: 'song-123',
+        title: 'Test Song',
+        artist: 'Test Artist',
+        user_id: 'test-user-123'
+      };
+
+      sequelize.models.Song.findOne.mockResolvedValue(mockSong);
+      sequelize.models.Video.findAll.mockResolvedValue([]);
+
+      const token = createAuthToken();
+      const response = await request(app)
+        .get('/api/videos/song-123')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([]);
+    });
+
+    it('should return 404 when song not found', async () => {
+      sequelize.models.Song.findOne.mockResolvedValue(null);
+
+      const token = createAuthToken();
+      const response = await request(app)
+        .get('/api/videos/non-existent')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(404);
+      expect(response.body).toMatchObject({
+        status: 'error',
+        message: 'Song not found'
+      });
+    });
+
+    it('should return 500 on database error', async () => {
+      sequelize.models.Song.findOne.mockRejectedValue(new Error('Database error'));
+
+      const token = createAuthToken();
+      const response = await request(app)
+        .get('/api/videos/song-123')
         .set('Authorization', `Bearer ${token}`);
 
       expect(response.status).toBe(500);
