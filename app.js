@@ -101,7 +101,10 @@ app.get('/api/tabs/:songId', requireAuth, (req, res) => {
 
       sequelize.models.Tab.findOne({ where: { song_id: songId } })
         .then(result => {
-          res.json(result);
+          res.json({
+            id: result.id,
+            text: result.text
+          });
         });
     })
     .catch(err => {
@@ -130,11 +133,100 @@ app.get('/api/videos/:songId', requireAuth, (req, res) => {
 
       sequelize.models.Video.findAll({ where: { song_id: songId } })
         .then(result => {
-          res.json(result);
+          res.json(result.map(video => ({
+            id: video.id,
+            video_type: video.video_type,
+            url: video.url
+          })));
         });
     })
     .catch(err => {
       console.error('Error executing query', err.stack);
+      res.status(500).json({
+        status: 'error',
+        message: 'Internal Server Error',
+        timestamp: new Date().toISOString(),
+      });
+    });
+});
+
+app.post('/api/songs', requireAuth, (req, res) => {
+  const userId = req.token.user_id;
+  const { title, artist, tab_text, videos } = req.body;
+
+  if (!title || !artist || !tab_text) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'title, artist, and tab_text are required',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  if (videos && !Array.isArray(videos)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'videos must be an array',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  if (videos && videos.length > 5) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Maximum of 5 videos allowed',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  if (videos && videos.some(v => !v.url || !v.video_type)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Each video must have a url and video_type',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  sequelize.models.Song.create({
+    title,
+    artist,
+    user_id: userId
+  })
+    .then(song => {
+      const tabPromise = sequelize.models.Tab.create({
+        text: tab_text,
+        song_id: song.id
+      });
+
+      const videoPromises = (videos || []).map(video =>
+        sequelize.models.Video.create({
+          url: video.url,
+          video_type: video.video_type,
+          song_id: song.id
+        })
+      );
+
+      return Promise.all([tabPromise, ...videoPromises])
+        .then(([tab, ...createdVideos]) => {
+          res.status(201).json({
+            song: {
+              id: song.id,
+              title: song.title,
+              artist: song.artist
+            },
+            tab: {
+              id: tab.id,
+              text: tab.text
+            },
+            videos: createdVideos.map(v => ({
+              id: v.id,
+              video_type: v.video_type,
+              url: v.url
+            }))
+          });
+        });
+    })
+    .catch(err => {
+      console.error('Error creating song', err.stack);
       res.status(500).json({
         status: 'error',
         message: 'Internal Server Error',
