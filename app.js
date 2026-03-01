@@ -1,13 +1,13 @@
 const express = require('express');
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const cors = require('cors');
 const sequelize = require('./sequelize');
 const { Sequelize } = require('sequelize');
 const { requireAuth, handleGoogleAuth } = require('./Auth');
 
 allowedOrigins = [
-  'http://localhost:5173',
+  'http://localhost:3000',
   'https://song-project.xyz'
 ];
 
