@@ -301,8 +301,8 @@ describe('Express App', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual([
-        { id: 'video-1', video_type: 'youtube', url: 'https://youtube.com/watch?v=abc123' },
-        { id: 'video-2', video_type: 'vimeo', url: 'https://vimeo.com/123456' }
+        { id: 'video-1', video_type: 'youtube', url: 'https://www.youtube.com/embed/abc123' },
+        { id: 'video-2', video_type: 'vimeo', url: 'https://www.youtube.com/embed/123456' }
       ]);
       expect(sequelize.models.Video.findAll).toHaveBeenCalledWith({
         where: { song_id: 'song-123' }
@@ -367,7 +367,7 @@ describe('Express App', () => {
       tab_text: 'Em7 G Dsus4 A7sus4',
       videos: [
         { url: 'https://youtube.com/watch?v=abc', video_type: 'youtube' },
-        { url: 'https://vimeo.com/123', video_type: 'vimeo' }
+        { url: '123', video_type: 'vimeo' }
       ]
     };
 

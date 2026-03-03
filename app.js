@@ -1,3 +1,11 @@
+function checkVideoUrl(url) {
+  if (!url) return null;
+  if (url.includes('youtube.com/embed')) return url;
+  if (url.includes('youtu.be/')) return 'https://www.youtube.com/embed/' + url.split('/').pop();
+  if (url.includes('youtube.com/watch?')) return 'https://www.youtube.com/embed/' + url.split('=').pop();
+  return 'https://www.youtube.com/embed/' + url;
+}
+
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -136,7 +144,7 @@ app.get('/api/videos/:songId', requireAuth, (req, res) => {
           res.json(result.map(video => ({
             id: video.id,
             video_type: video.video_type,
-            url: video.url
+            url: checkVideoUrl(video.url)
           })));
         });
     })
