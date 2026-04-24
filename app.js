@@ -15,7 +15,7 @@ const { Sequelize } = require('sequelize');
 const { requireAuth, handleGoogleAuth } = require('./Auth');
 
 allowedOrigins = [
-  'http://localhost:3000',
+  'http://localhost:3002',
   'https://song-project.xyz'
 ];
 
@@ -111,7 +111,8 @@ app.get('/api/tabs/:songId', requireAuth, (req, res) => {
         .then(result => {
           res.json({
             id: result.id,
-            text: result.text
+            text: result.text,
+            scroll_speed: result.scroll_speed
           });
         });
     })
@@ -193,7 +194,7 @@ app.delete('/api/songs/:songId', requireAuth, (req, res) => {
 
 app.post('/api/songs', requireAuth, (req, res) => {
   const userId = req.token.user_id;
-  const { title, artist, tab_text, videos } = req.body;
+  const { title, artist, tab_text, scroll_speed, videos } = req.body;
 
   if (!title || !artist || !tab_text) {
     return res.status(400).json({
@@ -235,6 +236,7 @@ app.post('/api/songs', requireAuth, (req, res) => {
     .then(song => {
       const tabPromise = sequelize.models.Tab.create({
         text: tab_text,
+        scroll_speed: scroll_speed ?? null,
         song_id: song.id
       });
 
@@ -255,10 +257,11 @@ app.post('/api/songs', requireAuth, (req, res) => {
               artist: song.artist
             },
             tab: {
-              id: tabPromise.id,
-              text: tabPromise.text
+              id: tab.id,
+              text: tab.text,
+              scroll_speed: tab.scroll_speed
             },
-            videos: videoPromises.map(v => ({
+            videos: createdVideos.map(v => ({
               id: v.id,
               video_type: v.video_type,
               url: v.url
@@ -280,7 +283,7 @@ app.post('/api/songs', requireAuth, (req, res) => {
 app.put('/api/songs/:songId', requireAuth, (req, res) => {
   const userId = req.token.user_id;
   const songId = req.params.songId;
-  const { title, artist, tab_text, videos } = req.body;
+  const { title, artist, tab_text, scroll_speed, videos } = req.body;
 
   if (!title || !artist || !tab_text) {
     return res.status(400).json({
@@ -326,6 +329,7 @@ app.put('/api/songs/:songId', requireAuth, (req, res) => {
 
       song.title = title;
       song.artist = artist;
+      const songSavePromise = song.save();
 
       const tabPromise = sequelize.models.Tab.findOne({ where: { song_id: songId } })
         .then(tab => {
@@ -333,6 +337,7 @@ app.put('/api/songs/:songId', requireAuth, (req, res) => {
             return Promise.reject(new Error('Tab not found'));
           }
           tab.text = tab_text;
+          tab.scroll_speed = scroll_speed ?? null;
           return tab.save();
         });
 
@@ -368,19 +373,20 @@ app.put('/api/songs/:songId', requireAuth, (req, res) => {
           });
         });
 
-        return Promise.all([tabPromise,, ...updatePromises, ...createPromises])
-        .then(() => {
+        return Promise.all([songSavePromise, tabPromise, ...updatePromises, ...createPromises])
+        .then(([savedSong, tab, ...updatedAndCreatedVideos]) => {
           res.status(200).json({
             song: {
-              id: song.id,
-              title: song.title,
-              artist: song.artist
+              id: savedSong.id,
+              title: savedSong.title,
+              artist: savedSong.artist
             },
             tab: {
-              id: tabPromise.id,
-              text: tabPromise.text
+              id: tab.id,
+              text: tab.text,
+              scroll_speed: tab.scroll_speed
             },
-            videos: [...updatePromises, ...createPromises].map(v => ({
+            videos: updatedAndCreatedVideos.map(v => ({
               id: v.id,
               video_type: v.video_type,
               url: v.url

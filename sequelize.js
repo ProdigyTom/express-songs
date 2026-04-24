@@ -65,6 +65,10 @@ sequelize.define('Tab', {
     type: Sequelize.TEXT,
     allowNull: false
   },
+  scroll_speed: {
+    type: Sequelize.INTEGER,
+    allowNull: true
+  },
   song_id: {
     type: Sequelize.UUID,
     allowNull: false

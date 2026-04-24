@@ -27,11 +27,13 @@ jest.mock('../sequelize', () => ({
     },
     Tab: {
       findOne: jest.fn(),
-      create: jest.fn()
+      create: jest.fn(),
+      destroy: jest.fn()
     },
     Video: {
       findAll: jest.fn(),
-      create: jest.fn()
+      create: jest.fn(),
+      destroy: jest.fn()
     }
   }
 }));
@@ -208,6 +210,7 @@ describe('Express App', () => {
       const mockTab = {
         id: 'tab-123',
         text: 'Am G C F',
+        scroll_speed: null,
         song_id: 'song-123'
       };
 
@@ -222,8 +225,25 @@ describe('Express App', () => {
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         id: 'tab-123',
-        text: 'Am G C F'
+        text: 'Am G C F',
+        scroll_speed: null
       });
+    });
+
+    it('should return scroll_speed when set', async () => {
+      const mockSong = { id: 'song-123', title: 'Test Song', artist: 'Test Artist', user_id: 'test-user-123' };
+      const mockTab = { id: 'tab-123', text: 'Am G C F', scroll_speed: 5, song_id: 'song-123' };
+
+      sequelize.models.Song.findOne.mockResolvedValue(mockSong);
+      sequelize.models.Tab.findOne.mockResolvedValue(mockTab);
+
+      const token = createAuthToken();
+      const response = await request(app)
+        .get('/api/tabs/song-123')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ id: 'tab-123', text: 'Am G C F', scroll_speed: 5 });
     });
 
     it('should return 404 when song not found', async () => {
@@ -283,8 +303,8 @@ describe('Express App', () => {
         },
         {
           id: 'video-2',
-          video_type: 'vimeo',
-          url: 'https://vimeo.com/123456',
+          video_type: 'youtube',
+          url: 'https://youtube.com/watch?v=xyz789',
           song_id: 'song-123',
           created_at: '2024-01-02T00:00:00.000Z',
           updated_at: '2024-01-02T00:00:00.000Z'
@@ -302,7 +322,7 @@ describe('Express App', () => {
       expect(response.status).toBe(200);
       expect(response.body).toEqual([
         { id: 'video-1', video_type: 'youtube', url: 'https://www.youtube.com/embed/abc123' },
-        { id: 'video-2', video_type: 'vimeo', url: 'https://www.youtube.com/embed/123456' }
+        { id: 'video-2', video_type: 'youtube', url: 'https://www.youtube.com/embed/xyz789' }
       ]);
       expect(sequelize.models.Video.findAll).toHaveBeenCalledWith({
         where: { song_id: 'song-123' }
@@ -367,7 +387,7 @@ describe('Express App', () => {
       tab_text: 'Em7 G Dsus4 A7sus4',
       videos: [
         { url: 'https://youtube.com/watch?v=abc', video_type: 'youtube' },
-        { url: '123', video_type: 'vimeo' }
+        { url: 'https://youtube.com/watch?v=xyz', video_type: 'youtube' }
       ]
     };
 
@@ -494,10 +514,10 @@ describe('Express App', () => {
 
     it('should create song, tab, and videos successfully', async () => {
       const mockSong = { id: 'song-new-123', title: 'Wonderwall', artist: 'Oasis' };
-      const mockTab = { id: 'tab-new-123', text: 'Em7 G Dsus4 A7sus4' };
+      const mockTab = { id: 'tab-new-123', text: 'Em7 G Dsus4 A7sus4', scroll_speed: null };
       const mockVideos = [
         { id: 'video-new-1', video_type: 'youtube', url: 'https://youtube.com/watch?v=abc' },
-        { id: 'video-new-2', video_type: 'vimeo', url: 'https://vimeo.com/123' }
+        { id: 'video-new-2', video_type: 'youtube', url: 'https://youtube.com/watch?v=xyz' }
       ];
 
       sequelize.models.Song.create.mockResolvedValue(mockSong);
@@ -515,10 +535,10 @@ describe('Express App', () => {
       expect(response.status).toBe(201);
       expect(response.body).toEqual({
         song: { id: 'song-new-123', title: 'Wonderwall', artist: 'Oasis' },
-        tab: { id: 'tab-new-123', text: 'Em7 G Dsus4 A7sus4' },
+        tab: { id: 'tab-new-123', text: 'Em7 G Dsus4 A7sus4', scroll_speed: null },
         videos: [
           { id: 'video-new-1', video_type: 'youtube', url: 'https://youtube.com/watch?v=abc' },
-          { id: 'video-new-2', video_type: 'vimeo', url: 'https://vimeo.com/123' }
+          { id: 'video-new-2', video_type: 'youtube', url: 'https://youtube.com/watch?v=xyz' }
         ]
       });
 
@@ -529,14 +549,59 @@ describe('Express App', () => {
       });
       expect(sequelize.models.Tab.create).toHaveBeenCalledWith({
         text: 'Em7 G Dsus4 A7sus4',
+        scroll_speed: null,
         song_id: 'song-new-123'
       });
       expect(sequelize.models.Video.create).toHaveBeenCalledTimes(2);
     });
 
+    it('should create tab with provided scroll_speed', async () => {
+      const mockSong = { id: 'song-new-123', title: 'Wonderwall', artist: 'Oasis' };
+      const mockTab = { id: 'tab-new-123', text: 'Am G', scroll_speed: 3 };
+
+      sequelize.models.Song.create.mockResolvedValue(mockSong);
+      sequelize.models.Tab.create.mockResolvedValue(mockTab);
+
+      const token = createAuthToken();
+      const response = await request(app)
+        .post('/api/songs')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: 'Wonderwall', artist: 'Oasis', tab_text: 'Am G', scroll_speed: 3 });
+
+      expect(response.status).toBe(201);
+      expect(response.body.tab).toEqual({ id: 'tab-new-123', text: 'Am G', scroll_speed: 3 });
+      expect(sequelize.models.Tab.create).toHaveBeenCalledWith({
+        text: 'Am G',
+        scroll_speed: 3,
+        song_id: 'song-new-123'
+      });
+    });
+
+    it('should create tab with null scroll_speed when not provided', async () => {
+      const mockSong = { id: 'song-new-123', title: 'Wonderwall', artist: 'Oasis' };
+      const mockTab = { id: 'tab-new-123', text: 'Am G', scroll_speed: null };
+
+      sequelize.models.Song.create.mockResolvedValue(mockSong);
+      sequelize.models.Tab.create.mockResolvedValue(mockTab);
+
+      const token = createAuthToken();
+      const response = await request(app)
+        .post('/api/songs')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: 'Wonderwall', artist: 'Oasis', tab_text: 'Am G' });
+
+      expect(response.status).toBe(201);
+      expect(response.body.tab).toMatchObject({ scroll_speed: null });
+      expect(sequelize.models.Tab.create).toHaveBeenCalledWith({
+        text: 'Am G',
+        scroll_speed: null,
+        song_id: 'song-new-123'
+      });
+    });
+
     it('should create song with no videos when videos array is empty', async () => {
       const mockSong = { id: 'song-new-123', title: 'Wonderwall', artist: 'Oasis' };
-      const mockTab = { id: 'tab-new-123', text: 'Am G' };
+      const mockTab = { id: 'tab-new-123', text: 'Am G', scroll_speed: null };
 
       sequelize.models.Song.create.mockResolvedValue(mockSong);
       sequelize.models.Tab.create.mockResolvedValue(mockTab);
@@ -554,7 +619,7 @@ describe('Express App', () => {
 
     it('should create song with no videos when videos is omitted', async () => {
       const mockSong = { id: 'song-new-123', title: 'Wonderwall', artist: 'Oasis' };
-      const mockTab = { id: 'tab-new-123', text: 'Am G' };
+      const mockTab = { id: 'tab-new-123', text: 'Am G', scroll_speed: null };
 
       sequelize.models.Song.create.mockResolvedValue(mockSong);
       sequelize.models.Tab.create.mockResolvedValue(mockTab);
@@ -577,7 +642,7 @@ describe('Express App', () => {
       }));
 
       const mockSong = { id: 'song-new-123', title: 'Wonderwall', artist: 'Oasis' };
-      const mockTab = { id: 'tab-new-123', text: 'Am G' };
+      const mockTab = { id: 'tab-new-123', text: 'Am G', scroll_speed: null };
 
       sequelize.models.Song.create.mockResolvedValue(mockSong);
       sequelize.models.Tab.create.mockResolvedValue(mockTab);
@@ -606,6 +671,183 @@ describe('Express App', () => {
       const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
+        .set('Authorization', `Bearer ${token}`)
+        .send(validPayload);
+
+      expect(response.status).toBe(500);
+      expect(response.body).toMatchObject({
+        status: 'error',
+        message: 'Internal Server Error'
+      });
+    });
+  });
+
+  describe('PUT /api/songs/:songId', () => {
+    const validPayload = {
+      title: 'Wonderwall Updated',
+      artist: 'Oasis',
+      tab_text: 'Em G D A'
+    };
+
+    const makeMockSong = (overrides = {}) => ({
+      id: 'song-123',
+      title: 'Old Title',
+      artist: 'Oasis',
+      save: jest.fn().mockResolvedValue({ id: 'song-123', title: 'Wonderwall Updated', artist: 'Oasis', ...overrides })
+    });
+
+    const makeMockTab = (overrides = {}) => ({
+      id: 'tab-123',
+      text: 'Am G',
+      scroll_speed: null,
+      save: jest.fn().mockResolvedValue({ id: 'tab-123', text: 'Em G D A', scroll_speed: null, ...overrides })
+    });
+
+    it('should return 401 without auth token', async () => {
+      const response = await request(app)
+        .put('/api/songs/song-123')
+        .send(validPayload);
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should return 400 when title is missing', async () => {
+      const token = createAuthToken();
+      const response = await request(app)
+        .put('/api/songs/song-123')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ artist: 'Oasis', tab_text: 'Am G' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        status: 'error',
+        message: 'title, artist, and tab_text are required'
+      });
+    });
+
+    it('should return 400 when tab_text is missing', async () => {
+      const token = createAuthToken();
+      const response = await request(app)
+        .put('/api/songs/song-123')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: 'Wonderwall', artist: 'Oasis' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        status: 'error',
+        message: 'title, artist, and tab_text are required'
+      });
+    });
+
+    it('should return 400 when videos is not an array', async () => {
+      const token = createAuthToken();
+      const response = await request(app)
+        .put('/api/songs/song-123')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...validPayload, videos: 'not-array' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        status: 'error',
+        message: 'videos must be an array'
+      });
+    });
+
+    it('should return 400 when more than 5 videos are provided', async () => {
+      const videos = Array.from({ length: 6 }, (_, i) => ({
+        url: `https://youtube.com/watch?v=${i}`,
+        video_type: 'youtube'
+      }));
+
+      const token = createAuthToken();
+      const response = await request(app)
+        .put('/api/songs/song-123')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...validPayload, videos });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        status: 'error',
+        message: 'Maximum of 5 videos allowed'
+      });
+    });
+
+    it('should return 404 when song not found', async () => {
+      sequelize.models.Song.findOne.mockResolvedValue(null);
+
+      const token = createAuthToken();
+      const response = await request(app)
+        .put('/api/songs/non-existent')
+        .set('Authorization', `Bearer ${token}`)
+        .send(validPayload);
+
+      expect(response.status).toBe(404);
+      expect(response.body).toMatchObject({
+        status: 'error',
+        message: 'Song not found'
+      });
+    });
+
+    it('should update song and tab successfully', async () => {
+      sequelize.models.Song.findOne.mockResolvedValue(makeMockSong());
+      sequelize.models.Tab.findOne.mockResolvedValue(makeMockTab());
+      sequelize.models.Video.findAll.mockResolvedValue([]);
+
+      const token = createAuthToken();
+      const response = await request(app)
+        .put('/api/songs/song-123')
+        .set('Authorization', `Bearer ${token}`)
+        .send(validPayload);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        song: { id: 'song-123', title: 'Wonderwall Updated', artist: 'Oasis' },
+        tab: { id: 'tab-123', text: 'Em G D A', scroll_speed: null },
+        videos: []
+      });
+    });
+
+    it('should update tab with provided scroll_speed', async () => {
+      const mockTab = makeMockTab({ scroll_speed: 5, text: 'Em G D A' });
+      sequelize.models.Song.findOne.mockResolvedValue(makeMockSong());
+      sequelize.models.Tab.findOne.mockResolvedValue(mockTab);
+      sequelize.models.Video.findAll.mockResolvedValue([]);
+
+      const token = createAuthToken();
+      const response = await request(app)
+        .put('/api/songs/song-123')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...validPayload, scroll_speed: 5 });
+
+      expect(response.status).toBe(200);
+      expect(response.body.tab).toMatchObject({ scroll_speed: 5 });
+      expect(mockTab.scroll_speed).toBe(5);
+      expect(mockTab.save).toHaveBeenCalled();
+    });
+
+    it('should set scroll_speed to null when not provided', async () => {
+      const mockTab = makeMockTab();
+      sequelize.models.Song.findOne.mockResolvedValue(makeMockSong());
+      sequelize.models.Tab.findOne.mockResolvedValue(mockTab);
+      sequelize.models.Video.findAll.mockResolvedValue([]);
+
+      const token = createAuthToken();
+      const response = await request(app)
+        .put('/api/songs/song-123')
+        .set('Authorization', `Bearer ${token}`)
+        .send(validPayload);
+
+      expect(response.status).toBe(200);
+      expect(response.body.tab).toMatchObject({ scroll_speed: null });
+      expect(mockTab.scroll_speed).toBeNull();
+    });
+
+    it('should return 500 on database error', async () => {
+      sequelize.models.Song.findOne.mockRejectedValue(new Error('Database error'));
+
+      const token = createAuthToken();
+      const response = await request(app)
+        .put('/api/songs/song-123')
         .set('Authorization', `Bearer ${token}`)
         .send(validPayload);
 
