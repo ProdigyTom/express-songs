@@ -283,17 +283,9 @@ app.post('/api/songs', requireAuth, (req, res) => {
 app.put('/api/songs/:songId', requireAuth, (req, res) => {
   const userId = req.token.user_id;
   const songId = req.params.songId;
-  const { title, artist, tab_text, scroll_speed, videos } = req.body;
+  const body = req.body;
 
-  if (!title || !artist || !tab_text) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'title, artist, and tab_text are required',
-      timestamp: new Date().toISOString(),
-    });
-  }
-
-  if (videos && !Array.isArray(videos)) {
+  if (body.videos !== undefined && !Array.isArray(body.videos)) {
     return res.status(400).json({
       status: 'error',
       message: 'videos must be an array',
@@ -301,7 +293,7 @@ app.put('/api/songs/:songId', requireAuth, (req, res) => {
     });
   }
 
-  if (videos && videos.length > 5) {
+  if (body.videos && body.videos.length > 5) {
     return res.status(400).json({
       status: 'error',
       message: 'Maximum of 5 videos allowed',
@@ -309,7 +301,7 @@ app.put('/api/songs/:songId', requireAuth, (req, res) => {
     });
   }
 
-  if (videos && videos.some(v => !v.url || !v.video_type)) {
+  if (body.videos && body.videos.some(v => !v.url || !v.video_type)) {
     return res.status(400).json({
       status: 'error',
       message: 'Each video must have a url and video_type',
@@ -327,8 +319,8 @@ app.put('/api/songs/:songId', requireAuth, (req, res) => {
         });
       }
 
-      song.title = title;
-      song.artist = artist;
+      if ('title' in body) song.title = body.title;
+      if ('artist' in body) song.artist = body.artist;
       const songSavePromise = song.save();
 
       const tabPromise = sequelize.models.Tab.findOne({ where: { song_id: songId } })
@@ -336,45 +328,49 @@ app.put('/api/songs/:songId', requireAuth, (req, res) => {
           if (!tab) {
             return Promise.reject(new Error('Tab not found'));
           }
-          tab.text = tab_text;
-          tab.scroll_speed = scroll_speed ?? null;
+          if ('tab_text' in body) tab.text = body.tab_text;
+          if ('scroll_speed' in body) tab.scroll_speed = body.scroll_speed ?? null;
           return tab.save();
         });
 
-      sequelize.models.Video.findAll({ where: { song_id: songId } }).then(existingVideos => {
-        // update videos if they exist, create new ones if they don't, delete videos not in the new list
-        const existingVideoIds = existingVideos.map(v => v.id);
-        const newVideoIds = (videos || []).map(v => v.id).filter(Boolean);
-
-        const videosToDelete = existingVideoIds.filter(id => !newVideoIds.includes(id));
-        const videosToUpdate = existingVideos.filter(v => newVideoIds.includes(v.id));
-        const videosToCreate = (videos || []).filter(v => !v.id);
-
-        // Delete videos
-        videosToDelete.map(id => sequelize.models.Video.destroy({ where: { id } }));
-
-        // Update videos
-        const updatePromises = videosToUpdate.map(video => {
-          const newData = videos.find(v => v.id === video.id);
-          if (newData) {
-            video.url = newData.url;
-            video.video_type = newData.video_type;
-            return video.save();
+      const videosPromise = sequelize.models.Video.findAll({ where: { song_id: songId } })
+        .then(existingVideos => {
+          if (body.videos === undefined) {
+            return existingVideos;
           }
-          return Promise.resolve();
-        });
 
-        // Create new videos
-        const createPromises = videosToCreate.map(video => {
-          return sequelize.models.Video.create({
-            url: video.url,
-            video_type: video.video_type,
-            song_id: songId
+          const existingVideoIds = existingVideos.map(v => v.id);
+          const newVideoIds = body.videos.map(v => v.id).filter(Boolean);
+
+          const videosToDelete = existingVideoIds.filter(id => !newVideoIds.includes(id));
+          const videosToUpdate = existingVideos.filter(v => newVideoIds.includes(v.id));
+          const videosToCreate = body.videos.filter(v => !v.id);
+
+          videosToDelete.forEach(id => sequelize.models.Video.destroy({ where: { id } }));
+
+          const updatePromises = videosToUpdate.map(video => {
+            const newData = body.videos.find(v => v.id === video.id);
+            if (newData) {
+              video.url = newData.url;
+              video.video_type = newData.video_type;
+              return video.save();
+            }
+            return Promise.resolve();
           });
+
+          const createPromises = videosToCreate.map(video =>
+            sequelize.models.Video.create({
+              url: video.url,
+              video_type: video.video_type,
+              song_id: songId
+            })
+          );
+
+          return Promise.all([...updatePromises, ...createPromises]);
         });
 
-        return Promise.all([songSavePromise, tabPromise, ...updatePromises, ...createPromises])
-        .then(([savedSong, tab, ...updatedAndCreatedVideos]) => {
+      return Promise.all([songSavePromise, tabPromise, videosPromise])
+        .then(([savedSong, tab, videos]) => {
           res.status(200).json({
             song: {
               id: savedSong.id,
@@ -386,14 +382,13 @@ app.put('/api/songs/:songId', requireAuth, (req, res) => {
               text: tab.text,
               scroll_speed: tab.scroll_speed
             },
-            videos: updatedAndCreatedVideos.map(v => ({
+            videos: videos.map(v => ({
               id: v.id,
               video_type: v.video_type,
               url: v.url
             }))
           });
         });
-      });
     })
     .catch(err => {
       console.error('Error updating song', err.stack);

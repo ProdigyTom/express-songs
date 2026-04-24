@@ -696,12 +696,11 @@ describe('Express App', () => {
       save: jest.fn().mockResolvedValue({ id: 'song-123', title: 'Wonderwall Updated', artist: 'Oasis', ...overrides })
     });
 
-    const makeMockTab = (overrides = {}) => ({
-      id: 'tab-123',
-      text: 'Am G',
-      scroll_speed: null,
-      save: jest.fn().mockResolvedValue({ id: 'tab-123', text: 'Em G D A', scroll_speed: null, ...overrides })
-    });
+    const makeMockTab = (overrides = {}) => {
+      const tab = { id: 'tab-123', text: 'Am G', scroll_speed: null, ...overrides };
+      tab.save = jest.fn().mockResolvedValue({ id: 'tab-123', text: 'Em G D A', scroll_speed: null, ...overrides });
+      return tab;
+    };
 
     it('should return 401 without auth token', async () => {
       const response = await request(app)
@@ -709,34 +708,6 @@ describe('Express App', () => {
         .send(validPayload);
 
       expect(response.status).toBe(401);
-    });
-
-    it('should return 400 when title is missing', async () => {
-      const token = createAuthToken();
-      const response = await request(app)
-        .put('/api/songs/song-123')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ artist: 'Oasis', tab_text: 'Am G' });
-
-      expect(response.status).toBe(400);
-      expect(response.body).toMatchObject({
-        status: 'error',
-        message: 'title, artist, and tab_text are required'
-      });
-    });
-
-    it('should return 400 when tab_text is missing', async () => {
-      const token = createAuthToken();
-      const response = await request(app)
-        .put('/api/songs/song-123')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ title: 'Wonderwall', artist: 'Oasis' });
-
-      expect(response.status).toBe(400);
-      expect(response.body).toMatchObject({
-        status: 'error',
-        message: 'title, artist, and tab_text are required'
-      });
     });
 
     it('should return 400 when videos is not an array', async () => {
@@ -825,8 +796,23 @@ describe('Express App', () => {
       expect(mockTab.save).toHaveBeenCalled();
     });
 
-    it('should set scroll_speed to null when not provided', async () => {
-      const mockTab = makeMockTab();
+    it('should not change scroll_speed when scroll_speed is not in the request body', async () => {
+      const mockTab = makeMockTab({ scroll_speed: 5 });
+      sequelize.models.Song.findOne.mockResolvedValue(makeMockSong());
+      sequelize.models.Tab.findOne.mockResolvedValue(mockTab);
+      sequelize.models.Video.findAll.mockResolvedValue([]);
+
+      const token = createAuthToken();
+      await request(app)
+        .put('/api/songs/song-123')
+        .set('Authorization', `Bearer ${token}`)
+        .send(validPayload);
+
+      expect(mockTab.scroll_speed).toBe(5);
+    });
+
+    it('should update only scroll_speed when only scroll_speed is provided', async () => {
+      const mockTab = makeMockTab({ scroll_speed: null });
       sequelize.models.Song.findOne.mockResolvedValue(makeMockSong());
       sequelize.models.Tab.findOne.mockResolvedValue(mockTab);
       sequelize.models.Video.findAll.mockResolvedValue([]);
@@ -835,11 +821,11 @@ describe('Express App', () => {
       const response = await request(app)
         .put('/api/songs/song-123')
         .set('Authorization', `Bearer ${token}`)
-        .send(validPayload);
+        .send({ scroll_speed: 8 });
 
       expect(response.status).toBe(200);
-      expect(response.body.tab).toMatchObject({ scroll_speed: null });
-      expect(mockTab.scroll_speed).toBeNull();
+      expect(mockTab.scroll_speed).toBe(8);
+      expect(mockTab.save).toHaveBeenCalled();
     });
 
     it('should return 500 on database error', async () => {
