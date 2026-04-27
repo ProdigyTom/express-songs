@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 function checkVideoUrl(url) {
   if (!url) return null;
   if (url.includes('youtube.com/embed')) return url;

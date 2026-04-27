@@ -26,9 +26,23 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DB_NAME,DB_USER,DB_PASSWORD,DB_HOST,DB_PORT
           script: |
             cd /home/ec2-user/express-songs
             git pull origin master
             npm ci
+            cat > .env <<EOF
+            DB_NAME=$DB_NAME
+            DB_USER=$DB_USER
+            DB_PASSWORD=$DB_PASSWORD
+            DB_HOST=$DB_HOST
+            DB_PORT=$DB_PORT
+            EOF
             forever stopall
             forever start app.js
+        env:
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}

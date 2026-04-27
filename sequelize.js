@@ -1,11 +1,16 @@
 const { text } = require('express');
 const { Sequelize } = require('sequelize');
 
-const sequelize = new Sequelize('song_project_db', 'tomturner', 'DBPassword', {
-  host: 'localhost',
-  port: 5432,
-  dialect: 'postgres'
-});
+const sequelize = new Sequelize(
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASSWORD,
+  {
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    dialect: 'postgres'
+  }
+);
 
 sequelize.define('User', {
   id: {
