@@ -12,6 +12,7 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3001;
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const sequelize = require('./sequelize');
 const { Sequelize } = require('sequelize');
 const { requireAuth, handleGoogleAuth } = require('./Auth');
@@ -22,12 +23,19 @@ allowedOrigins = [
 ];
 
 app.use(cors({
-  origin: allowedOrigins
+  origin: allowedOrigins,
+  credentials: true,
 }));
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.post('/api/auth/google', async (req, res) => handleGoogleAuth(req, res));
+
+app.post('/api/auth/logout', (_req, res) => {
+  res.clearCookie('session_jwt', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' });
+  res.sendStatus(204);
+});
 
 app.get('/api/songs', requireAuth, (req, res) => {
   const userId = req.token.user_id;

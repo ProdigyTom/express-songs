@@ -1,7 +1,9 @@
+process.env.JWT_SECRET = 'test-secret';
+
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 
-const privateKey = 'my_super_secret_key';
+const privateKey = process.env.JWT_SECRET;
 
 // Create mock client instance that we can control
 const mockVerifyIdToken = jest.fn();
@@ -41,9 +43,10 @@ jest.mock('../sequelize', () => ({
 const sequelize = require('../sequelize');
 const app = require('../app');
 
-// Helper to create valid auth token
-const createAuthToken = (userId = 'test-user-123') => {
-  return jwt.sign({ user_id: userId }, privateKey);
+// Helper to create a valid session cookie header
+const authCookie = (userId = 'test-user-123') => {
+  const token = jwt.sign({ user_id: userId }, privateKey);
+  return `session_jwt=${token}`;
 };
 
 describe('Express App', () => {
@@ -70,10 +73,9 @@ describe('Express App', () => {
 
       sequelize.models.Song.findAll.mockResolvedValue(mockSongs);
 
-      const token = createAuthToken();
       const response = await request(app)
         .get('/api/songs')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(mockSongs);
@@ -89,10 +91,9 @@ describe('Express App', () => {
     it('should respect limit and offset parameters', async () => {
       sequelize.models.Song.findAll.mockResolvedValue([]);
 
-      const token = createAuthToken();
       await request(app)
         .get('/api/songs?limit=5&offset=10')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(sequelize.models.Song.findAll).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -105,10 +106,9 @@ describe('Express App', () => {
     it('should handle search query parameter', async () => {
       sequelize.models.Song.findAll.mockResolvedValue([]);
 
-      const token = createAuthToken();
       await request(app)
         .get('/api/songs?query=test')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(sequelize.models.Song.findAll).toHaveBeenCalled();
       const callArgs = sequelize.models.Song.findAll.mock.calls[0][0];
@@ -118,10 +118,9 @@ describe('Express App', () => {
     it('should return 500 on database error', async () => {
       sequelize.models.Song.findAll.mockRejectedValue(new Error('Database error'));
 
-      const token = createAuthToken();
       const response = await request(app)
         .get('/api/songs')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(response.status).toBe(500);
       expect(response.body).toMatchObject({
@@ -148,10 +147,9 @@ describe('Express App', () => {
 
       sequelize.models.Song.findOne.mockResolvedValue(mockSong);
 
-      const token = createAuthToken();
       const response = await request(app)
         .get('/api/songs/song-123')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
@@ -164,10 +162,9 @@ describe('Express App', () => {
     it('should return 404 for non-existent song', async () => {
       sequelize.models.Song.findOne.mockResolvedValue(null);
 
-      const token = createAuthToken();
       const response = await request(app)
         .get('/api/songs/non-existent')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(response.status).toBe(404);
       expect(response.body).toMatchObject({
@@ -179,10 +176,9 @@ describe('Express App', () => {
     it('should return 500 on database error', async () => {
       sequelize.models.Song.findOne.mockRejectedValue(new Error('Database error'));
 
-      const token = createAuthToken();
       const response = await request(app)
         .get('/api/songs/song-123')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(response.status).toBe(500);
       expect(response.body).toMatchObject({
@@ -217,10 +213,9 @@ describe('Express App', () => {
       sequelize.models.Song.findOne.mockResolvedValue(mockSong);
       sequelize.models.Tab.findOne.mockResolvedValue(mockTab);
 
-      const token = createAuthToken();
       const response = await request(app)
         .get('/api/tabs/song-123')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
@@ -237,10 +232,9 @@ describe('Express App', () => {
       sequelize.models.Song.findOne.mockResolvedValue(mockSong);
       sequelize.models.Tab.findOne.mockResolvedValue(mockTab);
 
-      const token = createAuthToken();
       const response = await request(app)
         .get('/api/tabs/song-123')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ id: 'tab-123', text: 'Am G C F', scroll_speed: 5 });
@@ -249,10 +243,9 @@ describe('Express App', () => {
     it('should return 404 when song not found', async () => {
       sequelize.models.Song.findOne.mockResolvedValue(null);
 
-      const token = createAuthToken();
       const response = await request(app)
         .get('/api/tabs/non-existent')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(response.status).toBe(404);
       expect(response.body).toMatchObject({
@@ -264,10 +257,9 @@ describe('Express App', () => {
     it('should return 500 on database error', async () => {
       sequelize.models.Song.findOne.mockRejectedValue(new Error('Database error'));
 
-      const token = createAuthToken();
       const response = await request(app)
         .get('/api/tabs/song-123')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(response.status).toBe(500);
       expect(response.body).toMatchObject({
@@ -314,10 +306,9 @@ describe('Express App', () => {
       sequelize.models.Song.findOne.mockResolvedValue(mockSong);
       sequelize.models.Video.findAll.mockResolvedValue(mockVideos);
 
-      const token = createAuthToken();
       const response = await request(app)
         .get('/api/videos/song-123')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual([
@@ -340,10 +331,9 @@ describe('Express App', () => {
       sequelize.models.Song.findOne.mockResolvedValue(mockSong);
       sequelize.models.Video.findAll.mockResolvedValue([]);
 
-      const token = createAuthToken();
       const response = await request(app)
         .get('/api/videos/song-123')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual([]);
@@ -352,10 +342,9 @@ describe('Express App', () => {
     it('should return 404 when song not found', async () => {
       sequelize.models.Song.findOne.mockResolvedValue(null);
 
-      const token = createAuthToken();
       const response = await request(app)
         .get('/api/videos/non-existent')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(response.status).toBe(404);
       expect(response.body).toMatchObject({
@@ -367,10 +356,9 @@ describe('Express App', () => {
     it('should return 500 on database error', async () => {
       sequelize.models.Song.findOne.mockRejectedValue(new Error('Database error'));
 
-      const token = createAuthToken();
       const response = await request(app)
         .get('/api/videos/song-123')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', authCookie());
 
       expect(response.status).toBe(500);
       expect(response.body).toMatchObject({
@@ -400,10 +388,9 @@ describe('Express App', () => {
     });
 
     it('should return 400 when title is missing', async () => {
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ artist: 'Oasis', tab_text: 'Am G' });
 
       expect(response.status).toBe(400);
@@ -414,10 +401,9 @@ describe('Express App', () => {
     });
 
     it('should return 400 when artist is missing', async () => {
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ title: 'Wonderwall', tab_text: 'Am G' });
 
       expect(response.status).toBe(400);
@@ -428,10 +414,9 @@ describe('Express App', () => {
     });
 
     it('should return 400 when tab_text is missing', async () => {
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ title: 'Wonderwall', artist: 'Oasis' });
 
       expect(response.status).toBe(400);
@@ -442,10 +427,9 @@ describe('Express App', () => {
     });
 
     it('should return 400 when videos is not an array', async () => {
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ title: 'Wonderwall', artist: 'Oasis', tab_text: 'Am G', videos: 'not-array' });
 
       expect(response.status).toBe(400);
@@ -461,10 +445,9 @@ describe('Express App', () => {
         video_type: 'youtube'
       }));
 
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ title: 'Wonderwall', artist: 'Oasis', tab_text: 'Am G', videos });
 
       expect(response.status).toBe(400);
@@ -475,10 +458,9 @@ describe('Express App', () => {
     });
 
     it('should return 400 when a video is missing url', async () => {
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({
           title: 'Wonderwall',
           artist: 'Oasis',
@@ -494,10 +476,9 @@ describe('Express App', () => {
     });
 
     it('should return 400 when a video is missing video_type', async () => {
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({
           title: 'Wonderwall',
           artist: 'Oasis',
@@ -526,10 +507,9 @@ describe('Express App', () => {
         .mockResolvedValueOnce(mockVideos[0])
         .mockResolvedValueOnce(mockVideos[1]);
 
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send(validPayload);
 
       expect(response.status).toBe(201);
@@ -562,10 +542,9 @@ describe('Express App', () => {
       sequelize.models.Song.create.mockResolvedValue(mockSong);
       sequelize.models.Tab.create.mockResolvedValue(mockTab);
 
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ title: 'Wonderwall', artist: 'Oasis', tab_text: 'Am G', scroll_speed: 3 });
 
       expect(response.status).toBe(201);
@@ -584,10 +563,9 @@ describe('Express App', () => {
       sequelize.models.Song.create.mockResolvedValue(mockSong);
       sequelize.models.Tab.create.mockResolvedValue(mockTab);
 
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ title: 'Wonderwall', artist: 'Oasis', tab_text: 'Am G' });
 
       expect(response.status).toBe(201);
@@ -606,10 +584,9 @@ describe('Express App', () => {
       sequelize.models.Song.create.mockResolvedValue(mockSong);
       sequelize.models.Tab.create.mockResolvedValue(mockTab);
 
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ title: 'Wonderwall', artist: 'Oasis', tab_text: 'Am G', videos: [] });
 
       expect(response.status).toBe(201);
@@ -624,10 +601,9 @@ describe('Express App', () => {
       sequelize.models.Song.create.mockResolvedValue(mockSong);
       sequelize.models.Tab.create.mockResolvedValue(mockTab);
 
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ title: 'Wonderwall', artist: 'Oasis', tab_text: 'Am G' });
 
       expect(response.status).toBe(201);
@@ -654,10 +630,9 @@ describe('Express App', () => {
         });
       });
 
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ title: 'Wonderwall', artist: 'Oasis', tab_text: 'Am G', videos });
 
       expect(response.status).toBe(201);
@@ -668,10 +643,9 @@ describe('Express App', () => {
     it('should return 500 on database error', async () => {
       sequelize.models.Song.create.mockRejectedValue(new Error('Database error'));
 
-      const token = createAuthToken();
       const response = await request(app)
         .post('/api/songs')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send(validPayload);
 
       expect(response.status).toBe(500);
@@ -711,10 +685,9 @@ describe('Express App', () => {
     });
 
     it('should return 400 when videos is not an array', async () => {
-      const token = createAuthToken();
       const response = await request(app)
         .put('/api/songs/song-123')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ ...validPayload, videos: 'not-array' });
 
       expect(response.status).toBe(400);
@@ -730,10 +703,9 @@ describe('Express App', () => {
         video_type: 'youtube'
       }));
 
-      const token = createAuthToken();
       const response = await request(app)
         .put('/api/songs/song-123')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ ...validPayload, videos });
 
       expect(response.status).toBe(400);
@@ -746,10 +718,9 @@ describe('Express App', () => {
     it('should return 404 when song not found', async () => {
       sequelize.models.Song.findOne.mockResolvedValue(null);
 
-      const token = createAuthToken();
       const response = await request(app)
         .put('/api/songs/non-existent')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send(validPayload);
 
       expect(response.status).toBe(404);
@@ -764,10 +735,9 @@ describe('Express App', () => {
       sequelize.models.Tab.findOne.mockResolvedValue(makeMockTab());
       sequelize.models.Video.findAll.mockResolvedValue([]);
 
-      const token = createAuthToken();
       const response = await request(app)
         .put('/api/songs/song-123')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send(validPayload);
 
       expect(response.status).toBe(200);
@@ -784,10 +754,9 @@ describe('Express App', () => {
       sequelize.models.Tab.findOne.mockResolvedValue(mockTab);
       sequelize.models.Video.findAll.mockResolvedValue([]);
 
-      const token = createAuthToken();
       const response = await request(app)
         .put('/api/songs/song-123')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ ...validPayload, scroll_speed: 5 });
 
       expect(response.status).toBe(200);
@@ -802,10 +771,9 @@ describe('Express App', () => {
       sequelize.models.Tab.findOne.mockResolvedValue(mockTab);
       sequelize.models.Video.findAll.mockResolvedValue([]);
 
-      const token = createAuthToken();
       await request(app)
         .put('/api/songs/song-123')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send(validPayload);
 
       expect(mockTab.scroll_speed).toBe(5);
@@ -817,10 +785,9 @@ describe('Express App', () => {
       sequelize.models.Tab.findOne.mockResolvedValue(mockTab);
       sequelize.models.Video.findAll.mockResolvedValue([]);
 
-      const token = createAuthToken();
       const response = await request(app)
         .put('/api/songs/song-123')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send({ scroll_speed: 8 });
 
       expect(response.status).toBe(200);
@@ -831,10 +798,9 @@ describe('Express App', () => {
     it('should return 500 on database error', async () => {
       sequelize.models.Song.findOne.mockRejectedValue(new Error('Database error'));
 
-      const token = createAuthToken();
       const response = await request(app)
         .put('/api/songs/song-123')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', authCookie())
         .send(validPayload);
 
       expect(response.status).toBe(500);
@@ -846,7 +812,7 @@ describe('Express App', () => {
   });
 
   describe('POST /api/auth/google', () => {
-    it('should authenticate existing user', async () => {
+    it('should authenticate existing user and set HttpOnly cookie', async () => {
       mockVerifyIdToken.mockResolvedValue({
         getPayload: () => ({
           sub: 'google-123',
@@ -855,9 +821,7 @@ describe('Express App', () => {
         })
       });
 
-      sequelize.models.User.findOne.mockResolvedValue({
-        id: 'user-uuid-123'
-      });
+      sequelize.models.User.findOne.mockResolvedValue({ id: 'user-uuid-123' });
 
       const response = await request(app)
         .post('/api/auth/google')
@@ -869,7 +833,34 @@ describe('Express App', () => {
         email: 'test@example.com',
         user_id: 'user-uuid-123'
       });
-      expect(response.body).toHaveProperty('session_jwt');
+      expect(response.body).not.toHaveProperty('session_jwt');
+      expect(response.headers['set-cookie']).toEqual(
+        expect.arrayContaining([expect.stringContaining('session_jwt=')])
+      );
+      expect(response.headers['set-cookie']).toEqual(
+        expect.arrayContaining([expect.stringContaining('HttpOnly')])
+      );
+    });
+
+    it('should return 401 for invalid Google token', async () => {
+      mockVerifyIdToken.mockRejectedValue(new Error('Invalid token'));
+
+      const response = await request(app)
+        .post('/api/auth/google')
+        .send({ token: 'bad-token' });
+
+      expect(response.status).toBe(401);
+      expect(response.body).toMatchObject({ status: 'error', message: 'Authentication failed' });
+      expect(response.headers['set-cookie']).toBeUndefined();
+    });
+
+    it('should clear session cookie on logout', async () => {
+      const response = await request(app).post('/api/auth/logout');
+
+      expect(response.status).toBe(204);
+      expect(response.headers['set-cookie']).toEqual(
+        expect.arrayContaining([expect.stringContaining('session_jwt=')])
+      );
     });
   });
 });

@@ -1,39 +1,51 @@
 const { OAuth2Client } = require('google-auth-library');
 const { randomUUID } = require('crypto');
-const GOOGLE_CLIENT_ID = '348459928331-3g606qfio1p157c6f9lblr31osb5ao78.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 const jwt = require('jsonwebtoken');
 const sequelize = require('./sequelize');
 
-const privateKey = 'my_super_secret_key';
+const privateKey = process.env.JWT_SECRET;
+
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
 
 const handleGoogleAuth = async (req, res) => {
-  const { token } = req.body;
-  const ticket = await client.verifyIdToken({
-      idToken: token,
-      audience: GOOGLE_CLIENT_ID,
-  });
-  const payload = ticket.getPayload();
+  try {
+    const { token } = req.body;
+    const ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
 
-  const google_user_id = payload.sub;
+    const google_user_id = payload.sub;
 
-  const user = await sequelize.models.User.findOne({ where: { google_login_id: google_user_id } });
+    const user = await sequelize.models.User.findOne({ where: { google_login_id: google_user_id } });
 
-  if (user) {
-    const user_id = user.id;
-    const session_jwt = jwt.sign({ user_id: user_id }, privateKey);
-    res.json({ name: payload.name, email: payload.email, user_id, session_jwt });
-  } else {
-    // If they don't exist create a new user
-    const user_id = randomUUID();
-    await sequelize.models.user.create({ id: user_id, google_login_id: google_user_id });
-    const session_jwt = jwt.sign({ user_id: user_id }, privateKey);
-    res.json({ name: payload.name, email: payload.email, user_id, session_jwt });
+    if (user) {
+      const user_id = user.id;
+      const session_jwt = jwt.sign({ user_id: user_id }, privateKey, { expiresIn: '7d' });
+      res.cookie('session_jwt', session_jwt, COOKIE_OPTIONS);
+      res.json({ name: payload.name, email: payload.email, user_id });
+    } else {
+      const user_id = randomUUID();
+      await sequelize.models.User.create({ id: user_id, google_login_id: google_user_id });
+      const session_jwt = jwt.sign({ user_id: user_id }, privateKey, { expiresIn: '7d' });
+      res.cookie('session_jwt', session_jwt, COOKIE_OPTIONS);
+      res.json({ name: payload.name, email: payload.email, user_id });
+    }
+  } catch (error) {
+    res.status(401).json({ status: 'error', message: 'Authentication failed' });
   }
 };
 
 const decodeSessionToken = (req) => {
-  const token = req.headers['authorization']?.split(' ')[1];
+  const token = req.cookies?.session_jwt;
 
   try {
     return jwt.verify(token, privateKey);

@@ -1,12 +1,11 @@
+process.env.JWT_SECRET = 'test-secret';
+
 const jwt = require('jsonwebtoken');
+const privateKey = process.env.JWT_SECRET;
 
-// Create mock client instance that we can control
 const mockVerifyIdToken = jest.fn();
-const mockClientInstance = {
-  verifyIdToken: mockVerifyIdToken
-};
+const mockClientInstance = { verifyIdToken: mockVerifyIdToken };
 
-// Mock dependencies before requiring Auth module
 jest.mock('google-auth-library', () => ({
   OAuth2Client: jest.fn(() => mockClientInstance)
 }));
@@ -16,9 +15,6 @@ jest.mock('../sequelize', () => ({
     User: {
       findOne: jest.fn(),
       create: jest.fn()
-    },
-    user: {
-      create: jest.fn()
     }
   }
 }));
@@ -26,43 +22,31 @@ jest.mock('../sequelize', () => ({
 const sequelize = require('../sequelize');
 const { decodeSessionToken, requireAuth, handleGoogleAuth } = require('../Auth');
 
-const privateKey = 'my_super_secret_key';
-
 describe('Auth', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   describe('decodeSessionToken', () => {
-    it('should return decoded token for valid JWT', () => {
+    it('should return decoded token for valid JWT in cookie', () => {
       const token = jwt.sign({ user_id: 'test-user-123' }, privateKey);
-      const req = {
-        headers: {
-          authorization: `Bearer ${token}`
-        }
-      };
+      const req = { cookies: { session_jwt: token } };
 
       const result = decodeSessionToken(req);
 
       expect(result).toMatchObject({ user_id: 'test-user-123' });
     });
 
-    it('should return null for invalid JWT', () => {
-      const req = {
-        headers: {
-          authorization: 'Bearer invalid-token'
-        }
-      };
+    it('should return null for invalid JWT in cookie', () => {
+      const req = { cookies: { session_jwt: 'invalid-token' } };
 
       const result = decodeSessionToken(req);
 
       expect(result).toBeNull();
     });
 
-    it('should return null when authorization header is missing', () => {
-      const req = {
-        headers: {}
-      };
+    it('should return null when cookie is missing', () => {
+      const req = { cookies: {} };
 
       const result = decodeSessionToken(req);
 
@@ -71,11 +55,7 @@ describe('Auth', () => {
 
     it('should return null for expired token', () => {
       const token = jwt.sign({ user_id: 'test-user-123' }, privateKey, { expiresIn: '-1s' });
-      const req = {
-        headers: {
-          authorization: `Bearer ${token}`
-        }
-      };
+      const req = { cookies: { session_jwt: token } };
 
       const result = decodeSessionToken(req);
 
@@ -84,17 +64,10 @@ describe('Auth', () => {
   });
 
   describe('requireAuth middleware', () => {
-    it('should call next() and attach token for valid auth', () => {
+    it('should call next() and attach token for valid cookie', () => {
       const token = jwt.sign({ user_id: 'test-user-123' }, privateKey);
-      const req = {
-        headers: {
-          authorization: `Bearer ${token}`
-        }
-      };
-      const res = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn()
-      };
+      const req = { cookies: { session_jwt: token } };
+      const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
       const next = jest.fn();
 
       requireAuth(req, res, next);
@@ -104,16 +77,9 @@ describe('Auth', () => {
       expect(res.status).not.toHaveBeenCalled();
     });
 
-    it('should return 401 for invalid auth', () => {
-      const req = {
-        headers: {
-          authorization: 'Bearer invalid-token'
-        }
-      };
-      const res = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn()
-      };
+    it('should return 401 for invalid cookie', () => {
+      const req = { cookies: { session_jwt: 'invalid-token' } };
+      const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
       const next = jest.fn();
 
       requireAuth(req, res, next);
@@ -121,21 +87,13 @@ describe('Auth', () => {
       expect(next).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: 'error',
-          message: 'Unauthorized'
-        })
+        expect.objectContaining({ status: 'error', message: 'Unauthorized' })
       );
     });
 
-    it('should return 401 when authorization header is missing', () => {
-      const req = {
-        headers: {}
-      };
-      const res = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn()
-      };
+    it('should return 401 when cookie is missing', () => {
+      const req = { cookies: {} };
+      const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
       const next = jest.fn();
 
       requireAuth(req, res, next);
@@ -146,74 +104,70 @@ describe('Auth', () => {
   });
 
   describe('handleGoogleAuth', () => {
-    it('should return user data for existing user', async () => {
-      const mockPayload = {
-        sub: 'google-123',
-        name: 'Test User',
-        email: 'test@example.com'
-      };
-
-      mockVerifyIdToken.mockResolvedValue({
-        getPayload: () => mockPayload
-      });
-
-      sequelize.models.User.findOne.mockResolvedValue({
-        id: 'user-uuid-123'
-      });
-
-      const req = {
-        body: { token: 'google-id-token' }
-      };
-      const res = {
-        json: jest.fn()
-      };
-
-      await handleGoogleAuth(req, res);
-
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: 'Test User',
-          email: 'test@example.com',
-          user_id: 'user-uuid-123'
-        })
-      );
-      expect(res.json.mock.calls[0][0]).toHaveProperty('session_jwt');
+    const makeRes = () => ({
+      json: jest.fn(),
+      cookie: jest.fn(),
+      status: jest.fn().mockReturnThis()
     });
 
-    it('should create new user when user does not exist', async () => {
-      const mockPayload = {
-        sub: 'google-456',
-        name: 'New User',
-        email: 'new@example.com'
-      };
+    it('should set HttpOnly cookie and return user data for existing user', async () => {
+      const mockPayload = { sub: 'google-123', name: 'Test User', email: 'test@example.com' };
+      mockVerifyIdToken.mockResolvedValue({ getPayload: () => mockPayload });
+      sequelize.models.User.findOne.mockResolvedValue({ id: 'user-uuid-123' });
 
-      mockVerifyIdToken.mockResolvedValue({
-        getPayload: () => mockPayload
-      });
-
-      sequelize.models.User.findOne.mockResolvedValue(null);
-      sequelize.models.user.create.mockResolvedValue({});
-
-      const req = {
-        body: { token: 'google-id-token' }
-      };
-      const res = {
-        json: jest.fn()
-      };
+      const req = { body: { token: 'google-id-token' } };
+      const res = makeRes();
 
       await handleGoogleAuth(req, res);
 
-      expect(sequelize.models.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          google_login_id: 'google-456'
-        })
+      expect(res.cookie).toHaveBeenCalledWith(
+        'session_jwt',
+        expect.any(String),
+        expect.objectContaining({ httpOnly: true })
       );
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: 'New User',
-          email: 'new@example.com'
-        })
+        expect.objectContaining({ name: 'Test User', email: 'test@example.com', user_id: 'user-uuid-123' })
       );
+      expect(res.json.mock.calls[0][0]).not.toHaveProperty('session_jwt');
+    });
+
+    it('should create new user and set cookie when user does not exist', async () => {
+      const mockPayload = { sub: 'google-456', name: 'New User', email: 'new@example.com' };
+      mockVerifyIdToken.mockResolvedValue({ getPayload: () => mockPayload });
+      sequelize.models.User.findOne.mockResolvedValue(null);
+      sequelize.models.User.create.mockResolvedValue({});
+
+      const req = { body: { token: 'google-id-token' } };
+      const res = makeRes();
+
+      await handleGoogleAuth(req, res);
+
+      expect(sequelize.models.User.create).toHaveBeenCalledWith(
+        expect.objectContaining({ google_login_id: 'google-456' })
+      );
+      expect(res.cookie).toHaveBeenCalledWith(
+        'session_jwt',
+        expect.any(String),
+        expect.objectContaining({ httpOnly: true })
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'New User', email: 'new@example.com' })
+      );
+    });
+
+    it('should return 401 when Google token verification fails', async () => {
+      mockVerifyIdToken.mockRejectedValue(new Error('Invalid token'));
+
+      const req = { body: { token: 'bad-token' } };
+      const res = makeRes();
+
+      await handleGoogleAuth(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'error', message: 'Authentication failed' })
+      );
+      expect(res.cookie).not.toHaveBeenCalled();
     });
   });
 });
