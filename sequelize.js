@@ -1,16 +1,24 @@
-const { text } = require('express');
 const { Sequelize } = require('sequelize');
 
-const sequelize = new Sequelize(
-  process.env.DB_NAME,
-  process.env.DB_USER,
-  process.env.DB_PASSWORD,
-  {
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
-    dialect: 'postgres'
-  }
-);
+const isProduction = process.env.NODE_ENV === 'production';
+
+const sequelize = isProduction
+  ? new Sequelize(
+      process.env.DB_NAME,
+      process.env.DB_USER,
+      process.env.DB_PASSWORD,
+      {
+        host: process.env.DB_HOST || 'localhost',
+        port: process.env.DB_PORT || 5432,
+        dialect: 'postgres',
+        logging: false,
+      }
+    )
+  : new Sequelize({
+      dialect: 'sqlite',
+      storage: './dev.sqlite',
+      logging: false,
+    });
 
 sequelize.define('User', {
   id: {
@@ -123,5 +131,8 @@ sequelize.define('Video', {
     tableName: 'videos',
     timestamps: false
 });
+
+// iLike is PostgreSQL-only; SQLite LIKE is case-insensitive for ASCII so Op.like suffices
+sequelize.likeOp = isProduction ? Sequelize.Op.iLike : Sequelize.Op.like;
 
 module.exports = sequelize;

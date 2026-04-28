@@ -27,39 +27,42 @@ All data is private: every query is filtered by the authenticated user's ID.
 
 ## Running locally
 
-**Prerequisites:** Node.js 20+, PostgreSQL running locally.
+No PostgreSQL installation required. The app uses SQLite automatically when `NODE_ENV` is not `production`.
 
 ```bash
 # 1. Install dependencies
 npm install
 
-# 2. Create the database
-createdb song_project_db
+# 2. Create a .env file with the two required vars (see Environment variables below)
 
-# 3. Create a .env file (see Environment variables below)
-cp .env.example .env   # or create it manually
+# 3. Seed the local SQLite database
+npm run seed
 
 # 4. Start the dev server (auto-restarts on file changes)
 npm run dev
 ```
 
-The server starts on port 3001 by default.
+The server starts on port 3001 by default. The SQLite database is stored in `dev.sqlite` (gitignored) and persists between restarts. To reset it to the seed data, run `npm run seed` again.
 
 ## Environment variables
 
-Create a `.env` file in the project root with the following:
+Create a `.env` file in the project root. For local development only two variables are required:
 
-| Variable | Description |
-|---|---|
-| `DB_NAME` | PostgreSQL database name |
-| `DB_USER` | PostgreSQL user |
-| `DB_PASSWORD` | PostgreSQL password |
-| `DB_HOST` | Database host (usually `localhost`) |
-| `DB_PORT` | Database port (usually `5432`) |
-| `GOOGLE_CLIENT_ID` | OAuth client ID from Google Cloud Console |
-| `JWT_SECRET` | Random secret used to sign session JWTs — keep this long and random |
-| `PORT` | HTTP port (defaults to `3001`) |
-| `NODE_ENV` | Set to `production` in production (enables `Secure` flag on cookie) |
+| Variable | Required locally | Description |
+|---|---|---|
+| `GOOGLE_CLIENT_ID` | Yes | OAuth client ID from Google Cloud Console |
+| `JWT_SECRET` | Yes | Secret used to sign session JWTs — any string works locally |
+| `PORT` | No | HTTP port (defaults to `3001`) |
+| `NODE_ENV` | No | Set to `production` to use PostgreSQL and enable the `Secure` cookie flag |
+| `DB_NAME` | Production only | PostgreSQL database name |
+| `DB_USER` | Production only | PostgreSQL user |
+| `DB_PASSWORD` | Production only | PostgreSQL password |
+| `DB_HOST` | Production only | Database host |
+| `DB_PORT` | Production only | Database port |
+
+## Seed data
+
+`seeds/data.json` contains the seed dataset committed to the repo. Anyone who clones the project can run `npm run seed` to get a working local database.
 
 ## Database schema
 

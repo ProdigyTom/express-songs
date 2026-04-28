@@ -49,8 +49,8 @@ app.get('/api/songs', requireAuth, (req, res) => {
       user_id: userId,
       ...(query && {
         [Sequelize.Op.or]: [
-          { title: { [Sequelize.Op.iLike]: query } },
-          { artist: { [Sequelize.Op.iLike]: query } }
+          { title: { [sequelize.likeOp]: query } },
+          { artist: { [sequelize.likeOp]: query } }
         ]
       })
     },
@@ -411,9 +411,15 @@ app.put('/api/songs/:songId', requireAuth, (req, res) => {
 });
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
+  const start = () => app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+  if (process.env.NODE_ENV !== 'production') {
+    sequelize.sync().then(start).catch(err => {
+      console.error('Failed to sync database:', err);
+      process.exit(1);
+    });
+  } else {
+    start();
+  }
 }
 
 module.exports = app;
