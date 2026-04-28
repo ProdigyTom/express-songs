@@ -3,8 +3,9 @@ process.env.JWT_SECRET = 'test-secret';
 const jwt = require('jsonwebtoken');
 const privateKey = process.env.JWT_SECRET;
 
+const mockGetToken = jest.fn();
 const mockVerifyIdToken = jest.fn();
-const mockClientInstance = { verifyIdToken: mockVerifyIdToken };
+const mockClientInstance = { getToken: mockGetToken, verifyIdToken: mockVerifyIdToken };
 
 jest.mock('google-auth-library', () => ({
   OAuth2Client: jest.fn(() => mockClientInstance)
@@ -112,10 +113,11 @@ describe('Auth', () => {
 
     it('should set HttpOnly cookie and return user data for existing user', async () => {
       const mockPayload = { sub: 'google-123', name: 'Test User', email: 'test@example.com' };
+      mockGetToken.mockResolvedValue({ tokens: { id_token: 'mock-id-token' } });
       mockVerifyIdToken.mockResolvedValue({ getPayload: () => mockPayload });
       sequelize.models.User.findOne.mockResolvedValue({ id: 'user-uuid-123' });
 
-      const req = { body: { token: 'google-id-token' } };
+      const req = { body: { code: 'auth-code' } };
       const res = makeRes();
 
       await handleGoogleAuth(req, res);
@@ -133,11 +135,12 @@ describe('Auth', () => {
 
     it('should create new user and set cookie when user does not exist', async () => {
       const mockPayload = { sub: 'google-456', name: 'New User', email: 'new@example.com' };
+      mockGetToken.mockResolvedValue({ tokens: { id_token: 'mock-id-token' } });
       mockVerifyIdToken.mockResolvedValue({ getPayload: () => mockPayload });
       sequelize.models.User.findOne.mockResolvedValue(null);
       sequelize.models.User.create.mockResolvedValue({});
 
-      const req = { body: { token: 'google-id-token' } };
+      const req = { body: { code: 'auth-code' } };
       const res = makeRes();
 
       await handleGoogleAuth(req, res);
@@ -155,10 +158,26 @@ describe('Auth', () => {
       );
     });
 
-    it('should return 401 when Google token verification fails', async () => {
+    it('should return 401 when Google code exchange fails', async () => {
+      mockGetToken.mockRejectedValue(new Error('Invalid code'));
+
+      const req = { body: { code: 'bad-code' } };
+      const res = makeRes();
+
+      await handleGoogleAuth(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'error', message: 'Authentication failed' })
+      );
+      expect(res.cookie).not.toHaveBeenCalled();
+    });
+
+    it('should return 401 when ID token verification fails', async () => {
+      mockGetToken.mockResolvedValue({ tokens: { id_token: 'mock-id-token' } });
       mockVerifyIdToken.mockRejectedValue(new Error('Invalid token'));
 
-      const req = { body: { token: 'bad-token' } };
+      const req = { body: { code: 'auth-code' } };
       const res = makeRes();
 
       await handleGoogleAuth(req, res);

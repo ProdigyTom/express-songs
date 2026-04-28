@@ -6,8 +6,10 @@ const jwt = require('jsonwebtoken');
 const privateKey = process.env.JWT_SECRET;
 
 // Create mock client instance that we can control
+const mockGetToken = jest.fn();
 const mockVerifyIdToken = jest.fn();
 const mockClientInstance = {
+  getToken: mockGetToken,
   verifyIdToken: mockVerifyIdToken
 };
 
@@ -813,6 +815,7 @@ describe('Express App', () => {
 
   describe('POST /api/auth/google', () => {
     it('should authenticate existing user and set HttpOnly cookie', async () => {
+      mockGetToken.mockResolvedValue({ tokens: { id_token: 'mock-id-token' } });
       mockVerifyIdToken.mockResolvedValue({
         getPayload: () => ({
           sub: 'google-123',
@@ -825,7 +828,7 @@ describe('Express App', () => {
 
       const response = await request(app)
         .post('/api/auth/google')
-        .send({ token: 'google-id-token' });
+        .send({ code: 'auth-code' });
 
       expect(response.status).toBe(200);
       expect(response.body).toMatchObject({
@@ -842,12 +845,12 @@ describe('Express App', () => {
       );
     });
 
-    it('should return 401 for invalid Google token', async () => {
-      mockVerifyIdToken.mockRejectedValue(new Error('Invalid token'));
+    it('should return 401 for invalid Google code', async () => {
+      mockGetToken.mockRejectedValue(new Error('Invalid code'));
 
       const response = await request(app)
         .post('/api/auth/google')
-        .send({ token: 'bad-token' });
+        .send({ code: 'bad-code' });
 
       expect(response.status).toBe(401);
       expect(response.body).toMatchObject({ status: 'error', message: 'Authentication failed' });

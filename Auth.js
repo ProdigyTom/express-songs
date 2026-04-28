@@ -1,7 +1,8 @@
 const { OAuth2Client } = require('google-auth-library');
 const { randomUUID } = require('crypto');
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const client = new OAuth2Client(GOOGLE_CLIENT_ID);
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const client = new OAuth2Client(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, 'postmessage');
 const jwt = require('jsonwebtoken');
 const sequelize = require('./sequelize');
 
@@ -16,10 +17,11 @@ const COOKIE_OPTIONS = {
 
 const handleGoogleAuth = async (req, res) => {
   try {
-    const { token } = req.body;
+    const { code } = req.body;
+    const { tokens } = await client.getToken(code);
     const ticket = await client.verifyIdToken({
-        idToken: token,
-        audience: GOOGLE_CLIENT_ID,
+      idToken: tokens.id_token,
+      audience: GOOGLE_CLIENT_ID,
     });
     const payload = ticket.getPayload();
 

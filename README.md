@@ -51,6 +51,7 @@ Create a `.env` file in the project root. For local development only two variabl
 | Variable | Required locally | Description |
 |---|---|---|
 | `GOOGLE_CLIENT_ID` | Yes | OAuth client ID from Google Cloud Console |
+| `GOOGLE_CLIENT_SECRET` | Yes | OAuth client secret from Google Cloud Console |
 | `JWT_SECRET` | Yes | Secret used to sign session JWTs — any string works locally |
 | `PORT` | No | HTTP port (defaults to `3001`) |
 | `NODE_ENV` | No | Set to `production` to use PostgreSQL and enable the `Secure` cookie flag |
@@ -323,5 +324,6 @@ push to master
 | `DB_HOST` | Secret | Production database host |
 | `DB_PORT` | Secret | Production database port |
 | `GOOGLE_CLIENT_ID` | Secret | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Secret | Google OAuth client secret |
 | `JWT_SECRET` | Secret | Production JWT signing secret (different from local) |
 | `BACKEND_PORT` | Variable | Port the server listens on (e.g. `3001`) |
