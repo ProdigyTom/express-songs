@@ -307,17 +307,18 @@ push to master
   forever start app.js
 ```
 
-### Required GitHub secrets
+### Required GitHub secrets and variables
 
-| Secret | Description |
-|---|---|
-| `EC2_HOST` | Public IP or hostname of the EC2 instance |
-| `EC2_USER` | SSH user (e.g. `ec2-user`) |
-| `EC2_SSH_KEY` | Private SSH key for the EC2 instance |
-| `DB_NAME` | Production database name |
-| `DB_USER` | Production database user |
-| `DB_PASSWORD` | Production database password |
-| `DB_HOST` | Production database host |
-| `DB_PORT` | Production database port |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
-| `JWT_SECRET` | Production JWT signing secret (different from local) |
+| Name | Type | Description |
+|---|---|---|
+| `EC2_HOST` | Secret | Public IP or hostname of the EC2 instance |
+| `EC2_USER` | Secret | SSH user (e.g. `ec2-user`) |
+| `EC2_SSH_KEY` | Secret | Private SSH key for the EC2 instance |
+| `DB_NAME` | Secret | Production database name |
+| `DB_USER` | Secret | Production database user |
+| `DB_PASSWORD` | Secret | Production database password |
+| `DB_HOST` | Secret | Production database host |
+| `DB_PORT` | Secret | Production database port |
+| `GOOGLE_CLIENT_ID` | Secret | Google OAuth client ID |
+| `JWT_SECRET` | Secret | Production JWT signing secret (different from local) |
+| `BACKEND_PORT` | Variable | Port the server listens on (e.g. `3001`) |

@@ -26,7 +26,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: DB_NAME,DB_USER,DB_PASSWORD,DB_HOST,DB_PORT,GOOGLE_CLIENT_ID,JWT_SECRET
+          envs: DB_NAME,DB_USER,DB_PASSWORD,DB_HOST,DB_PORT,GOOGLE_CLIENT_ID,JWT_SECRET,PORT
           script: |
             cd /home/ec2-user/express-songs
             git pull origin master
@@ -39,6 +39,7 @@ jobs:
             DB_PORT=$DB_PORT
             GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
             JWT_SECRET=$JWT_SECRET
+            PORT=$PORT
             EOF
             forever stopall
             forever start app.js
@@ -50,3 +51,4 @@ jobs:
           DB_PORT: ${{ secrets.DB_PORT }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          PORT: ${{ vars.BACKEND_PORT }}
