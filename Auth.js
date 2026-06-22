@@ -8,11 +8,13 @@ const sequelize = require('./sequelize');
 
 const privateKey = process.env.JWT_SECRET;
 
+const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'strict',
-  maxAge: 7 * 24 * 60 * 60 * 1000,
+  maxAge: SESSION_DURATION_MS,
 };
 
 const handleGoogleAuth = async (req, res) => {
@@ -68,6 +70,20 @@ const requireAuth = (req, res, next) => {
   }
 
   req.token = decoded;
+
+  const session_jwt = jwt.sign({ user_id: decoded.user_id }, privateKey, { expiresIn: '7d' });
+  res.cookie('session_jwt', session_jwt, COOKIE_OPTIONS);
+
+  const userData = req.cookies?.user_data;
+  if (userData) {
+    res.cookie('user_data', userData, {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: SESSION_DURATION_MS,
+      path: '/',
+    });
+  }
+
   next();
 };
 
