@@ -42,7 +42,7 @@ app.get('/api/songs', requireAuth, (req, res) => {
 
   const limit = req.query.limit ? parseInt(req.query.limit) : 10;
   const offset = req.query.offset ? parseInt(req.query.offset) : 0;
-  const query = req.query.query ? `%${req.query.query}%` : null;
+  const query = req.query.query ? `%${req.query.query.trim()}%` : null;
 
   sequelize.models.Song.findAll({
     where: {
