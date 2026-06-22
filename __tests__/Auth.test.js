@@ -68,7 +68,7 @@ describe('Auth', () => {
     it('should call next() and attach token for valid cookie', () => {
       const token = jwt.sign({ user_id: 'test-user-123' }, privateKey);
       const req = { cookies: { session_jwt: token } };
-      const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      const res = { status: jest.fn().mockReturnThis(), json: jest.fn(), cookie: jest.fn() };
       const next = jest.fn();
 
       requireAuth(req, res, next);
@@ -80,7 +80,7 @@ describe('Auth', () => {
 
     it('should return 401 for invalid cookie', () => {
       const req = { cookies: { session_jwt: 'invalid-token' } };
-      const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      const res = { status: jest.fn().mockReturnThis(), json: jest.fn(), cookie: jest.fn() };
       const next = jest.fn();
 
       requireAuth(req, res, next);
@@ -94,7 +94,7 @@ describe('Auth', () => {
 
     it('should return 401 when cookie is missing', () => {
       const req = { cookies: {} };
-      const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      const res = { status: jest.fn().mockReturnThis(), json: jest.fn(), cookie: jest.fn() };
       const next = jest.fn();
 
       requireAuth(req, res, next);
